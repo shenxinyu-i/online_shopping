@@ -1,0 +1,43 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: coupon-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/redis_heima?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf8
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  redis:
+    host: 172.21.143.221
+    port: 6379
+    database: 1
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+    sentinel:
+      transport:
+        dashboard: localhost:8858
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+
+seata:
+  enabled: true
+  tx-service-group: shopcoupon-tx-group
+  service:
+    vgroup-mapping:
+      shopcoupon-tx-group: default
+  registry:
+    type: nacos
+    nacos:
+      server-addr: localhost:8848
+      group: SEATA_GROUP
+      application: seata-server
+  data-source-proxy-mode: AT
