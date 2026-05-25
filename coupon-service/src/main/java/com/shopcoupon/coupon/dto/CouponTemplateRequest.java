@@ -1,5 +1,6 @@
 package com.shopcoupon.coupon.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
@@ -28,9 +29,11 @@ public class CouponTemplateRequest {
     private Integer totalCount;
 
     @NotNull(message = "秒杀开始时间不能为空")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime seckillStartTime;
 
     @NotNull(message = "秒杀结束时间不能为空")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime seckillEndTime;
 
     private Integer validDays;
