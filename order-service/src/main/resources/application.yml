@@ -7,12 +7,14 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/redis_heima?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf8
     username: root
-    password: 123456
+    password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
+        server-addr: localhost:8848  # 统一Nacos端口为8848
+        username: nacos
+        password: nacos
     sentinel:
       transport:
         dashboard: localhost:8858
@@ -24,19 +26,24 @@ mybatis-plus:
     db-config:
       id-type: auto
 
+# Seata统一配置
 seata:
   enabled: true
   tx-service-group: shopcoupon-tx-group
+  data-source-proxy-mode: AT
+
+  # 客户端配置（连接Seata Server）
   service:
     vgroup-mapping:
       shopcoupon-tx-group: default
   registry:
     type: nacos
     nacos:
-      server-addr: localhost:8848
+      server-addr: ${spring.cloud.nacos.discovery.server-addr}
       group: SEATA_GROUP
       application: seata-server
-  data-source-proxy-mode: AT
+      username: ${spring.cloud.nacos.discovery.username}
+      password: ${spring.cloud.nacos.discovery.password}
 
 feign:
   sentinel:

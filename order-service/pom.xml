@@ -58,6 +58,29 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+
+        <!-- ✅ 恢复使用seata-server依赖（1.6.1版本唯一可用） -->
+        <dependency>
+            <groupId>io.seata</groupId>
+            <artifactId>seata-server</artifactId>
+            <version>1.6.1</version>
+            <!-- 排除所有冲突的日志依赖 -->
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-reload4j</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>ch.qos.logback</groupId>
+                    <artifactId>logback-classic</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>ch.qos.logback</groupId>
+                    <artifactId>logback-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -68,4 +91,5 @@
             </plugin>
         </plugins>
     </build>
+
 </project>
