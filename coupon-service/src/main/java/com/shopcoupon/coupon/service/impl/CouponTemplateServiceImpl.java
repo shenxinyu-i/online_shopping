@@ -25,6 +25,11 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
     private final CouponTemplateMapper couponTemplateMapper;
     private final StringRedisTemplate redisTemplate;
 
+    /**
+     * 商户创建优惠券
+     * @param request
+     * @return
+     */
     @Override
     public CouponTemplate createTemplate(CouponTemplateRequest request) {
         //1检查优惠券是否在有效期内
@@ -55,6 +60,12 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
 
     }
 
+    /**
+     * 商户更新优惠券
+     * @param templateId
+     * @param request
+     * @return
+     */
     @Override
     public CouponTemplate updateTemplate(Long templateId, CouponTemplateRequest request) {
         CouponTemplate template=getById(templateId);
@@ -78,6 +89,11 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         return template;
     }
 
+    /**
+     * 根据优惠券id查询优惠券
+     * @param templateId
+     * @return
+     */
     @Override
     public CouponTemplate getTemplateById(Long templateId) {
         CouponTemplate template = couponTemplateMapper.selectById(templateId);
@@ -87,6 +103,11 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         return template;
     }
 
+    /**
+     * 根据店铺id查询其所有的优惠券
+     * @param shopId
+     * @return
+     */
     @Override
     public List<CouponTemplate> listTemplates(Long shopId) {
         LambdaQueryWrapper<CouponTemplate> wrapper=new LambdaQueryWrapper<>();
@@ -95,6 +116,10 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         return list(wrapper);
     }
 
+    /**
+     * 商家优惠券预热
+     * @param templateId
+     */
     @Override
     public void warmupStock(Long templateId) {
         //1查询优惠券是否存在

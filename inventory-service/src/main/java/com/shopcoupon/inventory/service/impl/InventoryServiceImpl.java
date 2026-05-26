@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class InventoryServiceImpl implements InventoryService {
+public class InventoryServiceImpl  implements InventoryService {
 
     private final InventoryMapper inventoryMapper;
     private final InventoryLogMapper inventoryLogMapper;
