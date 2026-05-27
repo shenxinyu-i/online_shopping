@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+
 @Slf4j
 @Component
 public class CouponClientFallbackFactory implements FallbackFactory<CouponClient> {
@@ -24,6 +26,13 @@ public class CouponClientFallbackFactory implements FallbackFactory<CouponClient
             public Result<Void> restoreCoupon(UseCouponRequest request) {
                 return Result.fail("优惠券服务繁忙，请稍后重试");
             }
+
+            @Override
+            public Result<BigDecimal> getDiscountAmount(Long couponId, BigDecimal originalAmount) {
+                log.warn("getDiscountAmount 降级: couponId={}", couponId);
+                return Result.fail("优惠券服务繁忙，请稍后重试");
+            }
         };
     }
 }
+

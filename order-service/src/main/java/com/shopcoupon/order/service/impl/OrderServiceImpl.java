@@ -1,8 +1,10 @@
 package com.shopcoupon.order.service.impl;
 
+import cn.hutool.db.sql.Order;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shopcoupon.common.exception.BusinessException;
 import com.shopcoupon.common.result.Result;
 import com.shopcoupon.common.utils.SnowflakeIdGenerator;
@@ -29,7 +31,7 @@ import java.util.Objects;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class OrderServiceImpl implements OrderService {
+public class OrderServiceImpl extends ServiceImpl<OrderMapper, OrderInfo> implements OrderService {
 
     private final OrderMapper orderMapper;
     private final CouponClient couponClient;
@@ -45,35 +47,38 @@ public class OrderServiceImpl implements OrderService {
         // 1. 生成订单号
         String orderNo = idGenerator.nextIdStr();
 
-        // 2. 模拟查询商品信息（实际项目中需调用商品服务获取）
-        // 这里先模拟商品价格，实际应通过productId调用商品服务查询
+        // 2. 查询商品价格（暂时模拟）
         BigDecimal productPrice = getProductPrice(request.getProductId());
         if (productPrice == null || productPrice.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException("商品价格异常");
         }
 
-        // 3. 计算金额
-        // 原价 = 商品单价 * 数量
+        // 3. 计算原价
         BigDecimal originalAmount = productPrice.multiply(new BigDecimal(request.getQuantity()));
-        // 优惠金额（默认0，有优惠券时需调用券服务查询优惠金额）
         BigDecimal discountAmount = BigDecimal.ZERO;
-        // 实付金额 = 原价 - 优惠金额
         BigDecimal finalAmount = originalAmount;
 
-        // 4. 核销优惠券（如果有）
+        // 4. 处理优惠券
         if (request.getCouponId() != null) {
+            // 4.1 先查优惠金额
+            Result<BigDecimal> discountResult = couponClient.getDiscountAmount(
+                    request.getCouponId(), originalAmount);
+            if (!discountResult.isSuccess()) {
+                throw new BusinessException(discountResult.getMessage());
+            }
+            discountAmount = discountResult.getData();
+
+            // 4.2 计算实付
+            finalAmount = originalAmount.subtract(discountAmount);
+            if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
+                finalAmount = BigDecimal.ZERO;
+            }
+
+            // 4.3 再核销券
             Result<Void> couponResult = couponClient.useCoupon(
                     new UseCouponRequest(request.getCouponId(), userId));
             if (!couponResult.isSuccess()) {
                 throw new BusinessException(couponResult.getMessage());
-            }
-
-            // 模拟查询优惠券优惠金额（实际需调用券服务获取）
-            discountAmount = getCouponDiscountAmount(request.getCouponId(), originalAmount);
-            // 重新计算实付金额（确保实付金额≥0）
-            finalAmount = originalAmount.subtract(discountAmount);
-            if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
-                finalAmount = BigDecimal.ZERO;
             }
         }
 
@@ -84,10 +89,11 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException(inventoryResult.getMessage());
         }
 
-        // 6. 创建订单记录（本地事务）
+        // 6. 保存订单
         saveOrderRecord(userId, request, orderNo, productPrice, originalAmount, discountAmount, finalAmount);
 
-        log.info("订单创建成功，订单号：{}，用户ID：{}", orderNo, userId);
+        log.info("订单创建成功: orderNo={}, userId={}, 原价={}, 优惠={}, 实付={}",
+                orderNo, userId, originalAmount, discountAmount, finalAmount);
         return orderNo;
     }
 
@@ -236,7 +242,7 @@ public class OrderServiceImpl implements OrderService {
      * 保存订单记录到数据库
      */
     @Transactional(rollbackFor = Exception.class)
-    private void saveOrderRecord(Long userId, CreateOrderRequest request, String orderNo,
+    public void saveOrderRecord(Long userId, CreateOrderRequest request, String orderNo,
                                  BigDecimal productPrice, BigDecimal originalAmount,
                                  BigDecimal discountAmount, BigDecimal finalAmount) {
         OrderInfo orderInfo = new OrderInfo();

@@ -3,13 +3,17 @@ package com.shopcoupon.coupon.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.shopcoupon.coupon.entity.CouponTemplate;
 import com.shopcoupon.coupon.entity.UserCoupon;
 import com.shopcoupon.coupon.mapper.UserCouponMapper;
+import com.shopcoupon.coupon.service.CouponTemplateService;
 import com.shopcoupon.coupon.service.UserCouponService;
 import com.shopcoupon.common.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -19,6 +23,8 @@ public class UserCouponServiceImpl
         extends ServiceImpl<UserCouponMapper, UserCoupon>
         implements UserCouponService {
 
+    @Resource
+    private CouponTemplateService templateServicel;
     @Override
     public List<UserCoupon> listMyCoupons(Long userId, String status) {
         LambdaQueryWrapper<UserCoupon> wrapper = new LambdaQueryWrapper<>();
@@ -100,5 +106,38 @@ public class UserCouponServiceImpl
         }
 
         log.info("优惠券退回成功: couponId={}, userId={}", couponId, userId);
+    }
+
+    @Override
+    public BigDecimal calculateDiscount(Long couponId, BigDecimal originAmount) {
+        //1.检查用户是否拥有该优惠券
+        UserCoupon coupon=getById(couponId);
+        if(coupon==null)
+        {
+            throw new BusinessException("您未拥有该优惠券");
+        }
+        //2.检查该优惠券是否存在
+        CouponTemplate template=templateServicel.getTemplateById(coupon.getTemplateId());
+        if(template==null)
+        {
+            throw new BusinessException("该优惠券不存在");
+
+        }
+        //3.根据优惠券类型进行核销
+        switch(template.getType())
+        {
+            case"FULL_REDUCTION":
+                if(originAmount.compareTo(template.getThresholdAmount())<0)
+                {
+                    throw new BusinessException("未达到满减金额");
+                }
+                return template.getDiscountAmount();
+            case"FIXED":
+                return template.getDiscountAmount();
+            case"DISCOUNT":
+                return originAmount.multiply(BigDecimal.ONE.subtract(template.getDiscountAmount()));
+            default:
+                throw new BusinessException("未知类型");
+        }
     }
 }

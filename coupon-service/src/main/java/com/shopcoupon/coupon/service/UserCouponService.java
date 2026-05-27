@@ -2,6 +2,7 @@ package com.shopcoupon.coupon.service;
 
 import com.shopcoupon.coupon.entity.UserCoupon;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface UserCouponService {
@@ -17,4 +18,8 @@ public interface UserCouponService {
      * 退还优惠券（订单取消时调用）
      */
     void restoreCoupon(Long couponId, Long userId);
+    /**
+     * 计算优惠券优惠金额
+     */
+    BigDecimal calculateDiscount(Long couponId,BigDecimal originAmount);
 }

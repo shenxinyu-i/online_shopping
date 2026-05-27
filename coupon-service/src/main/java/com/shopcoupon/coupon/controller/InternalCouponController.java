@@ -3,10 +3,12 @@ package com.shopcoupon.coupon.controller;
 import com.shopcoupon.coupon.dto.UseCouponRequest;
 import com.shopcoupon.coupon.service.UserCouponService;
 import com.shopcoupon.common.result.Result;
+import io.lettuce.core.dynamic.annotation.Param;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.math.BigDecimal;
 
 /**
  * 内部接口 - 供 Order-Service Feign 调用
@@ -29,4 +31,12 @@ public class InternalCouponController {
         userCouponService.restoreCoupon(request.getCouponId(), request.getUserId());
         return Result.success(null);
     }
+    @GetMapping("/discount")
+    public Result<BigDecimal> getDiscountAmount(
+            @RequestParam Long couponId,
+            @RequestParam BigDecimal originalAmount) {
+        BigDecimal discount = userCouponService.calculateDiscount(couponId, originalAmount);
+        return Result.success(discount);
+    }
+
 }

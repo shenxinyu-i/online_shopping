@@ -3,16 +3,20 @@ server:
 
 spring:
   application:
-    name: order-service
+    name: order-service  # 改回来，不是 coupon-service
   datasource:
-    url: jdbc:mysql://localhost:3306/redis_heima?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf8
+    url: jdbc:mysql://localhost:3306/order_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf8
     username: root
-    password: root
+    password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
-  cloud:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
     nacos:
       discovery:
-        server-addr: localhost:8848  # 统一Nacos端口为8848
+        server-addr: localhost:8848
         username: nacos
         password: nacos
     sentinel:
@@ -26,25 +30,18 @@ mybatis-plus:
     db-config:
       id-type: auto
 
-# Seata统一配置
 seata:
   enabled: true
   tx-service-group: shopcoupon-tx-group
-  data-source-proxy-mode: AT
-
-  # 客户端配置（连接Seata Server）
   service:
     vgroup-mapping:
       shopcoupon-tx-group: default
   registry:
     type: nacos
     nacos:
-      server-addr: ${spring.cloud.nacos.discovery.server-addr}
+      server-addr: localhost:8848
+      username: nacos
+      password: nacos
+      namespace: ""
       group: SEATA_GROUP
       application: seata-server
-      username: ${spring.cloud.nacos.discovery.username}
-      password: ${spring.cloud.nacos.discovery.password}
-
-feign:
-  sentinel:
-    enabled: true
