@@ -1,6 +1,7 @@
 package com.shopcoupon.auth.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shopcoupon.auth.dto.LoginRequest;
 import com.shopcoupon.auth.dto.LoginResponse;
 import com.shopcoupon.auth.dto.RegisterRequest;
@@ -18,27 +19,59 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class AuthServiceImpl implements AuthService {
+public class AuthServiceImpl extends ServiceImpl<UserMapper, User> implements AuthService {
 
-    private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
     @Override
     public void register(RegisterRequest request) {
-        // TODO: 校验用户名/手机号/邮箱唯一性
-        // TODO: 校验角色合法性（仅允许 USER/MERCHANT）
-        // TODO: BCrypt加密密码后入库
-        throw new BusinessException("注册功能待完善");
+        // 1. 校验用户名唯一性
+        if (count(new LambdaQueryWrapper<User>()
+                .eq(User::getUsername, request.getUsername())) > 0) {
+            throw new BusinessException(400, "用户名已被占用");
+        }
+
+        // 2. 校验手机号唯一性
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            if (count(new LambdaQueryWrapper<User>()
+                    .eq(User::getPhone, request.getPhone())) > 0) {
+                throw new BusinessException(400, "手机号已被注册");
+            }
+        }
+
+        // 3. 校验邮箱唯一性
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            if (count(new LambdaQueryWrapper<User>()
+                    .eq(User::getEmail, request.getEmail())) > 0) {
+                throw new BusinessException(400, "邮箱已被注册");
+            }
+        }
+
+        // 4. 校验角色合法性（仅允许 USER / MERCHANT）
+        String role = request.getRole();
+        if (role == null || role.isBlank()) {
+            role = CommonConstants.ROLE_USER;
+        }
+        if (!CommonConstants.ROLE_USER.equals(role) && !CommonConstants.ROLE_MERCHANT.equals(role)) {
+            throw new BusinessException(400, "不支持的角色类型，仅允许 USER 或 MERCHANT");
+        }
+
+        // 5. BCrypt 加密后入库
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setPhone(request.getPhone());
+        user.setEmail(request.getEmail());
+        user.setRole(role);
+        user.setStatus(1);
+
+        save(user);
     }
 
     @Override
     public LoginResponse login(LoginRequest request) {
-        // TODO: 根据用户名查询用户
-        // TODO: BCrypt校验密码
-        // TODO: 校验用户状态是否启用
-        // TODO: 签发 accessToken 和 refreshToken
-        User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
+        User user = getOne(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, request.getUsername()));
         if (user == null) {
             throw new BusinessException(401, "用户名或密码错误");
@@ -62,8 +95,6 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse refreshToken(String refreshToken) {
-        // TODO: 解析 refreshToken 并校验有效期
-        // TODO: 重新签发 accessToken 和 refreshToken
         Claims claims = jwtUtil.parseToken(refreshToken);
         Long userId = Long.parseLong(claims.getSubject());
         String username = claims.get("username", String.class);
@@ -79,8 +110,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserInfoResponse getCurrentUser(Long userId) {
-        // TODO: 查询用户信息并脱敏返回
-        User user = userMapper.selectById(userId);
+        User user = getById(userId);
         if (user == null) {
             throw new BusinessException(404, "用户不存在");
         }
