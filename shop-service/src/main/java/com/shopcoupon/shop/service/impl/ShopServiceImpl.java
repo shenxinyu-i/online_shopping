@@ -1,8 +1,6 @@
 package com.shopcoupon.shop.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.service.IService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shopcoupon.shop.dto.ShopRequest;
 import com.shopcoupon.shop.entity.Shop;
@@ -13,15 +11,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import javax.el.LambdaExpression;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ShopServiceImpl extends ServiceImpl<ShopMapper,Shop>implements ShopService {
-
-    private final ShopMapper shopMapper;
 
     @Override
     public Shop createShop(Long ownerId, ShopRequest request) {
@@ -71,7 +66,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper,Shop>implements Shop
         if (!shop.getOwnerId().equals(ownerId)) {
             throw new BusinessException(404, "无权操作此店铺");
         }
-        //4更行店铺信息
+        //4更新店铺信息
         if (StringUtils.hasText(request.getName())) {
             long count = lambdaQuery().eq(Shop::getOwnerId, ownerId)
                     .eq(Shop::getName, request.getName())
@@ -81,20 +76,20 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper,Shop>implements Shop
                 throw new BusinessException(409, "已存在同名店铺");
             }
             shop.setName(request.getName());
-            //5更新其他字段
-            if (StringUtils.hasText(request.getLogoUrl())) {
-                shop.setLogoUrl(request.getLogoUrl());
-            }
-            if (StringUtils.hasText(request.getDescription())) {
-                shop.setDescription(request.getDescription());
-            }
-            shop.setUpdatedAt(LocalDateTime.now());
-            boolean isUpdated = updateById(shop);
-            if (!isUpdated) {
-                throw new BusinessException("店铺更新失败");
-            }
-
-        } return shop;
+        }
+        //5更新其他字段
+        if (StringUtils.hasText(request.getLogoUrl())) {
+            shop.setLogoUrl(request.getLogoUrl());
+        }
+        if (StringUtils.hasText(request.getDescription())) {
+            shop.setDescription(request.getDescription());
+        }
+        shop.setUpdatedAt(LocalDateTime.now());
+        boolean isUpdated = updateById(shop);
+        if (!isUpdated) {
+            throw new BusinessException("店铺更新失败");
+        }
+        return shop;
     }
 
 
@@ -134,10 +129,12 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper,Shop>implements Shop
         }
         //2查询店铺是否存在
         Shop shop = getById(shopId);
-        if(shop==null)
-
-        {
+        if (shop == null) {
             throw new BusinessException(404,"店铺不存在");
+        }
+        //3校验店铺归属
+        if (!shop.getOwnerId().equals(ownerId)) {
+            throw new BusinessException(403, "无权操作此店铺");
         }
         //4更新状态
         shop.setStatus(status);

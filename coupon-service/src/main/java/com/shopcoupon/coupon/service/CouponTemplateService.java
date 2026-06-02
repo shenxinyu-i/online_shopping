@@ -16,5 +16,10 @@ public interface CouponTemplateService {
 
     List<CouponTemplate> listTemplates(Long shopId);
 
+    /**
+     * 查询所有有效的优惠券模板（首页秒杀展示）
+     */
+    List<CouponTemplate> listActiveTemplates();
+
     void warmupStock(Long templateId);
 }

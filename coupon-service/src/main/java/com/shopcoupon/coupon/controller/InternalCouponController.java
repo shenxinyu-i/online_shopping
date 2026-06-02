@@ -34,8 +34,9 @@ public class InternalCouponController {
     @GetMapping("/discount")
     public Result<BigDecimal> getDiscountAmount(
             @RequestParam Long couponId,
-            @RequestParam BigDecimal originalAmount) {
-        BigDecimal discount = userCouponService.calculateDiscount(couponId, originalAmount);
+            @RequestParam BigDecimal originalAmount,
+            @RequestParam Long shopId) {
+        BigDecimal discount = userCouponService.calculateDiscount(couponId, originalAmount, shopId);
         return Result.success(discount);
     }
 

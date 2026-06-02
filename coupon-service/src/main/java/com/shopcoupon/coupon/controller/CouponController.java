@@ -45,6 +45,14 @@ public class CouponController {
         return Result.success(couponTemplateService.listTemplates(shopId));
     }
 
+    /**
+     * 公开接口 — 获取所有有效的优惠券模板（首页秒杀展示）
+     */
+    @GetMapping("/templates/active")
+    public Result<List<CouponTemplate>> listActiveTemplates() {
+        return Result.success(couponTemplateService.listActiveTemplates());
+    }
+
     @PostMapping("/templates/{templateId}/warmup")
     public Result<Void> warmupStock(@PathVariable Long templateId) {
         couponTemplateService.warmupStock(templateId);

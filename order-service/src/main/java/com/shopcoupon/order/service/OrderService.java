@@ -25,4 +25,9 @@ public interface OrderService {
      * 更新订单状态（供Payment-Service Feign调用）
      */
     void updateOrderStatus(String orderNo, String status);
+
+    /**
+     * 根据订单号查询订单（供内部Feign调用，不校验归属）
+     */
+    OrderInfo getOrderByOrderNo(String orderNo);
 }

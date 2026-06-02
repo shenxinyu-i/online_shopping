@@ -2,6 +2,7 @@ package com.shopcoupon.payment.feign;
 
 import com.shopcoupon.common.result.Result;
 import com.shopcoupon.payment.feign.dto.ConfirmDeductRequest;
+import com.shopcoupon.payment.feign.dto.ReleaseStockRequest;
 import com.shopcoupon.payment.feign.fallback.InventoryClientFallbackFactory;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,4 +13,7 @@ public interface InventoryClient {
 
     @PostMapping("/api/inventory/confirm")
     Result<Void> confirmDeduct(@RequestBody ConfirmDeductRequest request);
+
+    @PostMapping("/api/inventory/release")
+    Result<Void> releaseStock(@RequestBody ReleaseStockRequest request);
 }

@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.beans.IntrospectionException;
 import java.util.List;
 
 @RestController
@@ -25,7 +26,7 @@ public class ProductController {
     @PutMapping("/{productId}")
     public Result<Product> updateProduct(
             @PathVariable Long productId,
-            @Valid @RequestBody ProductRequest request) {
+            @Valid @RequestBody ProductRequest request) throws IntrospectionException {
         return Result.success(productService.updateProduct(productId, request));
     }
 

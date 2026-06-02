@@ -19,7 +19,7 @@ public interface UserCouponService {
      */
     void restoreCoupon(Long couponId, Long userId);
     /**
-     * 计算优惠券优惠金额
+     * 计算优惠券优惠金额，并校验优惠券是否属于指定店铺
      */
-    BigDecimal calculateDiscount(Long couponId,BigDecimal originAmount);
+    BigDecimal calculateDiscount(Long couponId, BigDecimal originAmount, Long shopId);
 }

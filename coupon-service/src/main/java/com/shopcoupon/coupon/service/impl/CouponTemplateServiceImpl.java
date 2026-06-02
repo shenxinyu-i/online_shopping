@@ -16,13 +16,11 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static com.baomidou.mybatisplus.extension.toolkit.Db.save;
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,CouponTemplate> implements CouponTemplateService {
 
-    private final CouponTemplateMapper couponTemplateMapper;
     private final StringRedisTemplate redisTemplate;
 
     /**
@@ -37,22 +35,23 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         {
             throw new BusinessException("优惠券开始时间必须大于当前时间");
         }
-        if(request.getSeckillEndTime().isBefore(LocalDateTime.now()))
+        if(request.getSeckillEndTime().isBefore(request.getSeckillStartTime()))
         {
-            throw new BusinessException("优惠券结束时间必须大于当前时间");
+            throw new BusinessException("优惠券结束时间必须大于开始时间");
         }
-        if(request.getTotalCount()<0)
+        if(request.getTotalCount() <= 0)
         {
             throw new BusinessException("优惠券数量必须大于零");
         }
         //2 创建优惠券
         CouponTemplate template =new CouponTemplate();
         BeanUtil.copyProperties(request,template);
-        template.setStatus(1);
+        // 使用请求中的status，如果未指定则默认为有效
+        template.setStatus(request.getStatus() != null ? request.getStatus() : 1);
         boolean isSaved = save(template);//继承mybatisplus方法保存到数据库
         if(!isSaved)
         {
-            throw new BusinessException("创建订单失败");
+            throw new BusinessException("创建优惠券失败");
         }
         log.info("创建优惠券活动成功: id={}, name={}, 总量={}",
                 template.getId(), template.getName(), template.getTotalCount());
@@ -96,7 +95,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
      */
     @Override
     public CouponTemplate getTemplateById(Long templateId) {
-        CouponTemplate template = couponTemplateMapper.selectById(templateId);
+        CouponTemplate template = getById(templateId);
         if (template == null) {
             throw new BusinessException(404, "优惠券活动不存在");
         }
@@ -112,6 +111,19 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
     public List<CouponTemplate> listTemplates(Long shopId) {
         LambdaQueryWrapper<CouponTemplate> wrapper=new LambdaQueryWrapper<>();
         wrapper.eq(CouponTemplate::getShopId,shopId)
+                .orderByDesc(CouponTemplate::getCreatedAt);
+        return list(wrapper);
+    }
+
+    /**
+     * 查询所有有效的优惠券模板（首页秒杀展示）
+     */
+    @Override
+    public List<CouponTemplate> listActiveTemplates() {
+        LambdaQueryWrapper<CouponTemplate> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(CouponTemplate::getStatus, 1)
+                .le(CouponTemplate::getSeckillStartTime, LocalDateTime.now())
+                .ge(CouponTemplate::getSeckillEndTime, LocalDateTime.now())
                 .orderByDesc(CouponTemplate::getCreatedAt);
         return list(wrapper);
     }

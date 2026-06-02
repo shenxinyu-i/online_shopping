@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: order-service  # 改回来，不是 coupon-service
+    name: order-service
   datasource:
     url: jdbc:mysql://localhost:3306/order_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf8
     username: root
@@ -13,7 +13,7 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
-
+  cloud:
     nacos:
       discovery:
         server-addr: localhost:8848

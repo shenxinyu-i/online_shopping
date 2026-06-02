@@ -39,4 +39,7 @@ public class CouponTemplateRequest {
     private Integer validDays;
 
     private Integer perUserLimit;
+
+    /** 状态: 1有效 0失效 */
+    private Integer status;
 }

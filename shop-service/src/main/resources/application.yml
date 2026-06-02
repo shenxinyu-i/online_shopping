@@ -10,17 +10,16 @@ spring:
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
   redis:
-    host: localhost
+    host: 172.26.59.163
     port: 6379
-    database: 0
-  cache:
-    type: redis
-    redis:
-      time-to-live: 1800000
+    database: 1
   cloud:
     nacos:
       discovery:
         server-addr: localhost:8848
+    sentinel:
+      transport:
+        dashboard: localhost:8858
 
 mybatis-plus:
   configuration:

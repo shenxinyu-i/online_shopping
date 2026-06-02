@@ -4,6 +4,7 @@ import com.shopcoupon.common.result.Result;
 import com.shopcoupon.inventory.dto.ConfirmDeductRequest;
 import com.shopcoupon.inventory.dto.LockStockRequest;
 import com.shopcoupon.inventory.dto.ReleaseStockRequest;
+import com.shopcoupon.inventory.dto.SetStockRequest;
 import com.shopcoupon.inventory.entity.Inventory;
 import com.shopcoupon.inventory.service.InventoryService;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,15 @@ public class InventoryController {
     @PostMapping("/release")
     public Result<Void> releaseStock(@Valid @RequestBody ReleaseStockRequest request) {
         inventoryService.releaseStock(request);
+        return Result.success(null);
+    }
+
+    /**
+     * 商家设置/更新商品库存
+     */
+    @PostMapping("/set")
+    public Result<Void> setStock(@Valid @RequestBody SetStockRequest request) {
+        inventoryService.setStock(request);
         return Result.success(null);
     }
 }

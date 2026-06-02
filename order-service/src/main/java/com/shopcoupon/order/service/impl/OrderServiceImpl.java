@@ -1,6 +1,5 @@
 package com.shopcoupon.order.service.impl;
 
-import cn.hutool.db.sql.Order;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -12,7 +11,9 @@ import com.shopcoupon.order.dto.CreateOrderRequest;
 import com.shopcoupon.order.entity.OrderInfo;
 import com.shopcoupon.order.feign.CouponClient;
 import com.shopcoupon.order.feign.InventoryClient;
+import com.shopcoupon.order.feign.ProductClient;
 import com.shopcoupon.order.feign.dto.LockStockRequest;
+import com.shopcoupon.order.feign.dto.ProductDTO;
 import com.shopcoupon.order.feign.dto.ReleaseStockRequest;
 import com.shopcoupon.order.feign.dto.UseCouponRequest;
 import com.shopcoupon.order.mapper.OrderMapper;
@@ -36,6 +37,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, OrderInfo> implem
     private final OrderMapper orderMapper;
     private final CouponClient couponClient;
     private final InventoryClient inventoryClient;
+    private final ProductClient productClient;
     private final SnowflakeIdGenerator idGenerator = new SnowflakeIdGenerator(1, 1);
 
     /**
@@ -60,9 +62,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, OrderInfo> implem
 
         // 4. 处理优惠券
         if (request.getCouponId() != null) {
-            // 4.1 先查优惠金额
+            // 4.1 先查优惠金额（传入 shopId 校验优惠券归属）
             Result<BigDecimal> discountResult = couponClient.getDiscountAmount(
-                    request.getCouponId(), originalAmount);
+                    request.getCouponId(), originalAmount, request.getShopId());
             if (!discountResult.isSuccess()) {
                 throw new BusinessException(discountResult.getMessage());
             }
@@ -270,31 +272,45 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, OrderInfo> implem
     /**
      * 根据订单号查询订单
      */
-    private OrderInfo getOrderByOrderNo(String orderNo) {
+    @Override
+    public OrderInfo getOrderByOrderNo(String orderNo) {
         LambdaQueryWrapper<OrderInfo> queryWrapper = new LambdaQueryWrapper<OrderInfo>()
                 .eq(OrderInfo::getOrderNo, orderNo);
         return orderMapper.selectOne(queryWrapper);
     }
 
     /**
-     * 模拟获取商品价格（实际项目中需调用商品服务）
+     * 通过Feign调用shop-service获取商品价格
      */
     private BigDecimal getProductPrice(Long productId) {
-        // 实际项目中应通过Feign调用商品服务获取
-        // 这里模拟返回固定价格，可根据productId设置不同价格
-        return new BigDecimal("99.00");
+        try {
+            Result<ProductDTO> result = productClient.getProductDetail(productId);
+            if (result.isSuccess() && result.getData() != null) {
+                return result.getData().getPrice();
+            }
+        } catch (Exception e) {
+            log.error("获取商品价格失败: productId={}, error={}", productId, e.getMessage());
+        }
+        throw new BusinessException("商品不存在或已下架");
     }
 
     /**
-     * 模拟获取商品名称（实际项目中需调用商品服务）
+     * 通过Feign调用shop-service获取商品名称
      */
     private String getProductName(Long productId) {
-        // 实际项目中应通过Feign调用商品服务获取
-        return "默认商品名称-" + productId;
+        try {
+            Result<ProductDTO> result = productClient.getProductDetail(productId);
+            if (result.isSuccess() && result.getData() != null) {
+                return result.getData().getName();
+            }
+        } catch (Exception e) {
+            log.error("获取商品名称失败: productId={}, error={}", productId, e.getMessage());
+        }
+        return "商品-" + productId;
     }
 
     /**
-     * 模拟获取优惠券优惠金额（实际项目中需调用优惠券服务）
+     * 模拟获取优惠券优惠金额（实际项目中应通过Feign调用优惠券服务获取优惠金额）
      */
     private BigDecimal getCouponDiscountAmount(Long couponId, BigDecimal originalAmount) {
         // 实际项目中应通过Feign调用优惠券服务获取优惠金额

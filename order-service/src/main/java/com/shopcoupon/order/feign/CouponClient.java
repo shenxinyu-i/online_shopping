@@ -36,10 +36,11 @@ public interface CouponClient {
      * @param originalAmount
      * @return
      */
-    @GetMapping("/discount")
+    @GetMapping("/api/coupon/internal/discount")
     Result<BigDecimal> getDiscountAmount(
             @RequestParam("couponId") Long couponId,
-            @RequestParam("originalAmount") BigDecimal originalAmount
+            @RequestParam("originalAmount") BigDecimal originalAmount,
+            @RequestParam("shopId") Long shopId
     );
 
 }

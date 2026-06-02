@@ -58,5 +58,8 @@ jwt:
   whitelist:
     - /api/auth/login
     - /api/auth/register
+    - /api/auth/refresh
     - /api/shop/products
     - /api/shop/products/**
+    - /api/inventory/**
+    - /api/coupon/templates/active

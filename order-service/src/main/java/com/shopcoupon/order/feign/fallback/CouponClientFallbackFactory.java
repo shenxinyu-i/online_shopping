@@ -28,8 +28,8 @@ public class CouponClientFallbackFactory implements FallbackFactory<CouponClient
             }
 
             @Override
-            public Result<BigDecimal> getDiscountAmount(Long couponId, BigDecimal originalAmount) {
-                log.warn("getDiscountAmount 降级: couponId={}", couponId);
+            public Result<BigDecimal> getDiscountAmount(Long couponId, BigDecimal originalAmount, Long shopId) {
+                log.warn("getDiscountAmount 降级: couponId={}, shopId={}", couponId, shopId);
                 return Result.fail("优惠券服务繁忙，请稍后重试");
             }
         };

@@ -109,7 +109,7 @@ public class UserCouponServiceImpl
     }
 
     @Override
-    public BigDecimal calculateDiscount(Long couponId, BigDecimal originAmount) {
+    public BigDecimal calculateDiscount(Long couponId, BigDecimal originAmount, Long shopId) {
         //1.检查用户是否拥有该优惠券
         UserCoupon coupon=getById(couponId);
         if(coupon==null)
@@ -123,7 +123,11 @@ public class UserCouponServiceImpl
             throw new BusinessException("该优惠券不存在");
 
         }
-        //3.根据优惠券类型进行核销
+        //3.校验优惠券是否属于当前店铺
+        if (!template.getShopId().equals(shopId)) {
+            throw new BusinessException("该优惠券不属于本店铺，无法使用");
+        }
+        //4.根据优惠券类型进行核销
         switch(template.getType())
         {
             case"FULL_REDUCTION":
