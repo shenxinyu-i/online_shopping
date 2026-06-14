@@ -1,0 +1,408 @@
+# ============================================================
+# Multi-Shop E-Commerce Platform - Docker Compose
+# Start:  docker-compose up -d
+# Logs:   docker-compose logs -f [service]
+# Stop:   docker-compose down -v
+# ============================================================
+
+# ==================== Common Config Anchors ====================
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-backend-health: &backend-health
+  test: ["CMD", "sh", "-c", "wget -q -O- http://localhost:${SERVICE_PORT:-8080}/actuator/health 2>/dev/null || exit 1"]
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 60s
+
+# ==================== Networks ====================
+networks:
+  app-net:
+    driver: bridge
+    name: shop-app-net
+
+# ==================== Volumes ====================
+volumes:
+  mysql_data:
+    name: shop_mysql_data
+  redis_data:
+    name: shop_redis_data
+  nacos_data:
+    name: shop_nacos_data
+
+# ==================== Services ====================
+services:
+
+  # ================================================
+  # Infrastructure Services
+  # ================================================
+
+  # ---- MySQL 8.0 ----
+  mysql:
+    image: mysql:8.0
+    container_name: shop-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+      - --max-connections=500
+      - --default-authentication-plugin=mysql_native_password
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-123456}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    logging: *default-logging
+
+  # ---- Redis 7 Alpine ----
+  redis:
+    image: redis:7-alpine
+    container_name: shop-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly yes
+      - --maxmemory 256mb
+      - --maxmemory-policy allkeys-lru
+      - --requirepass ""
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging: *default-logging
+
+  # ---- Nacos Server (Standalone + embedded Derby) ----
+  nacos:
+    image: nacos/nacos-server:v2.2.0
+    container_name: shop-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+    ports:
+      - "${NACOS_PORT:-8848}:8848"
+      - "${NACOS_GRPC_PORT:-9848}:9848"
+      - "${NACOS_GRPC_CLUSTER_PORT:-9849}:9849"
+    volumes:
+      - nacos_data:/home/nacos/logs
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -f http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+
+  # ---- Seata Server (TC) ----
+  seata-server:
+    image: seataio/seata-server:1.7.1
+    container_name: shop-seata
+    restart: unless-stopped
+    environment:
+      SEATA_PORT: 8091
+      STORE_MODE: file
+      SEATA_XMS: 256m
+      SEATA_XMX: 512m
+    ports:
+      - "${SEATA_CONSOLE_PORT:-7091}:7091"
+      - "${SEATA_PORT:-8091}:8091"
+    volumes:
+      - ./seata/conf/application.yml:/seata-server/resources/application.yml:ro
+    networks:
+      - app-net
+    depends_on:
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -f http://localhost:7091/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  # ================================================
+  # Backend Microservices
+  # ================================================
+
+  # ---- Auth Service (8081) ----
+  auth-service:
+    build:
+      context: ./team_3
+      dockerfile: ../Dockerfile.backend
+      args:
+        SERVICE_NAME: auth-service
+    container_name: shop-auth-service
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/auth_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      JWT_SECRET: ${JWT_SECRET:-shop-coupon-platform-jwt-secret-key-2025}
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    ports:
+      - "${AUTH_SERVICE_PORT:-8081}:8081"
+    networks:
+      - app-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ---- Shop Service (8082) ----
+  shop-service:
+    build:
+      context: ./team_3
+      dockerfile: ../Dockerfile.backend
+      args:
+        SERVICE_NAME: shop-service
+    container_name: shop-shop-service
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/shop_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    ports:
+      - "${SHOP_SERVICE_PORT:-8082}:8082"
+    networks:
+      - app-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ---- Coupon Service (8083) ----
+  coupon-service:
+    build:
+      context: ./team_3
+      dockerfile: ../Dockerfile.backend
+      args:
+        SERVICE_NAME: coupon-service
+    container_name: shop-coupon-service
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/coupon_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
+      SPRING_REDIS_DATABASE: "1"
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SEATA_ENABLED: "true"
+      SEATA_TX_SERVICE_GROUP: shopcoupon-tx-group
+      SEATA_REGISTRY_TYPE: nacos
+      SEATA_REGISTRY_NACOS_SERVER_ADDR: nacos:8848
+      SEATA_REGISTRY_NACOS_NAMESPACE: ""
+      SEATA_REGISTRY_NACOS_GROUP: SEATA_GROUP
+      SEATA_REGISTRY_NACOS_APPLICATION: seata-server
+      SEATA_SERVICE_VGROUP_MAPPING_SHOPCOUPON_TX_GROUP: default
+      SEATA_SERVICE_GROUPLIST_DEFAULT: seata-server:8091
+      SEATA_DATA_SOURCE_PROXY_MODE: AT
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    ports:
+      - "${COUPON_SERVICE_PORT:-8083}:8083"
+    networks:
+      - app-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      seata-server:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ---- Order Service (8084) ----
+  order-service:
+    build:
+      context: ./team_3
+      dockerfile: ../Dockerfile.backend
+      args:
+        SERVICE_NAME: order-service
+    container_name: shop-order-service
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/order_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_DISCOVERY_USERNAME: nacos
+      SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD: nacos
+      SEATA_ENABLED: "true"
+      SEATA_TX_SERVICE_GROUP: shopcoupon-tx-group
+      SEATA_REGISTRY_TYPE: nacos
+      SEATA_REGISTRY_NACOS_SERVER_ADDR: nacos:8848
+      SEATA_REGISTRY_NACOS_USERNAME: nacos
+      SEATA_REGISTRY_NACOS_PASSWORD: nacos
+      SEATA_REGISTRY_NACOS_NAMESPACE: ""
+      SEATA_REGISTRY_NACOS_GROUP: SEATA_GROUP
+      SEATA_REGISTRY_NACOS_APPLICATION: seata-server
+      SEATA_SERVICE_VGROUP_MAPPING_SHOPCOUPON_TX_GROUP: default
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    ports:
+      - "${ORDER_SERVICE_PORT:-8084}:8084"
+    networks:
+      - app-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      seata-server:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ---- Inventory Service (8085) ----
+  inventory-service:
+    build:
+      context: ./team_3
+      dockerfile: ../Dockerfile.backend
+      args:
+        SERVICE_NAME: inventory-service
+    container_name: shop-inventory-service
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/inventory_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SEATA_ENABLED: "true"
+      SEATA_TX_SERVICE_GROUP: shopcoupon-tx-group
+      SEATA_REGISTRY_TYPE: nacos
+      SEATA_REGISTRY_NACOS_SERVER_ADDR: nacos:8848
+      SEATA_REGISTRY_NACOS_GROUP: SEATA_GROUP
+      SEATA_REGISTRY_NACOS_APPLICATION: seata-server
+      SEATA_SERVICE_VGROUP_MAPPING_SHOPCOUPON_TX_GROUP: default
+      SEATA_SERVICE_GROUPLIST_DEFAULT: seata-server:8091
+      SEATA_DATA_SOURCE_PROXY_MODE: AT
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    ports:
+      - "${INVENTORY_SERVICE_PORT:-8085}:8085"
+    networks:
+      - app-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      seata-server:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ---- Payment Service (8086) ----
+  payment-service:
+    build:
+      context: ./team_3
+      dockerfile: ../Dockerfile.backend
+      args:
+        SERVICE_NAME: payment-service
+    container_name: shop-payment-service
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/payment_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SEATA_ENABLED: "true"
+      SEATA_TX_SERVICE_GROUP: shopcoupon-tx-group
+      SEATA_REGISTRY_TYPE: nacos
+      SEATA_REGISTRY_NACOS_SERVER_ADDR: nacos:8848
+      SEATA_REGISTRY_NACOS_GROUP: SEATA_GROUP
+      SEATA_REGISTRY_NACOS_APPLICATION: seata-server
+      SEATA_SERVICE_VGROUP_MAPPING_SHOPCOUPON_TX_GROUP: default
+      SEATA_DATA_SOURCE_PROXY_MODE: AT
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    ports:
+      - "${PAYMENT_SERVICE_PORT:-8086}:8086"
+    networks:
+      - app-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      seata-server:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ---- Gateway Service (8088) ----
+  gateway-service:
+    build:
+      context: ./team_3
+      dockerfile: ../Dockerfile.backend
+      args:
+        SERVICE_NAME: gateway-service
+    container_name: shop-gateway-service
+    restart: unless-stopped
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      JWT_SECRET: ${JWT_SECRET:-shop-coupon-platform-jwt-secret-key-2025}
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    ports:
+      - "${GATEWAY_SERVICE_PORT:-8088}:8088"
+    networks:
+      - app-net
+    depends_on:
+      nacos:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ================================================
+  # Frontend (Nginx + Vue)
+  # ================================================
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: shop-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    networks:
+      - app-net
+    depends_on:
+      - gateway-service
+    logging: *default-logging

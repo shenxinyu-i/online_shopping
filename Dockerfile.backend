@@ -1,0 +1,59 @@
+# ============================================================
+# Multi-Stage Backend Dockerfile
+# Build all microservices with a single Dockerfile
+# Usage: docker build --build-arg SERVICE_NAME=auth-service -t auth-service .
+# ============================================================
+
+# ---- Stage 1: Maven Build ----
+FROM maven:3.9-eclipse-temurin-17-alpine AS builder
+
+ARG SERVICE_NAME
+WORKDIR /build
+
+# Copy Maven POM files first (layer caching for dependencies)
+COPY pom.xml .
+COPY common/pom.xml common/
+COPY gateway-service/pom.xml gateway-service/
+COPY auth-service/pom.xml auth-service/
+COPY shop-service/pom.xml shop-service/
+COPY coupon-service/pom.xml coupon-service/
+COPY order-service/pom.xml order-service/
+COPY inventory-service/pom.xml inventory-service/
+COPY payment-service/pom.xml payment-service/
+
+# Download dependencies (cached unless pom.xml changes)
+RUN mvn dependency:go-offline -pl ${SERVICE_NAME} -am -B -q || true
+
+# Copy source code
+COPY common/src common/src/
+COPY gateway-service/src gateway-service/src/
+COPY auth-service/src auth-service/src/
+COPY shop-service/src shop-service/src/
+COPY coupon-service/src coupon-service/src/
+COPY order-service/src order-service/src/
+COPY inventory-service/src inventory-service/src/
+COPY payment-service/src payment-service/src/
+
+# Build only the target service and its dependencies
+RUN mvn package -pl ${SERVICE_NAME} -am -DskipTests -B -q
+
+# ---- Stage 2: Runtime ----
+FROM eclipse-temurin:17-jre-alpine
+
+ARG SERVICE_NAME
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Copy the built jar
+COPY --from=builder /build/${SERVICE_NAME}/target/*.jar /app/app.jar
+
+# Java options
+ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom"
+
+USER appuser
+
+EXPOSE 8080
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

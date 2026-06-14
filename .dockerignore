@@ -1,0 +1,38 @@
+# Node
+**/node_modules/
+**/npm-debug.log
+
+# Java
+**/target/
+**/*.class
+**/.mvn/
+**/mvnw*
+
+# IDE
+**/.idea/
+**/.vscode/
+**/*.iml
+**/.project
+**/.classpath
+**/.settings/
+
+# OS
+**/.DS_Store
+**/Thumbs.db
+
+# Docker
+**/Dockerfile*
+**/docker-compose*.yml
+**/.dockerignore
+
+# Git
+**/.git/
+**/.gitignore
+
+# Logs
+**/*.log
+**/logs/
+
+# Temp
+**/.temp/
+**/tmp/
